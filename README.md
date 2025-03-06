@@ -19,12 +19,14 @@ Graded Challenge 1 ini dibuat guna mengevaluasi pemahaman mongoDB sebagai beriku
 
 2. **Microservices Development**:
    - **User Service**: 
-     - Endpoints: `POST /users`, `GET /users/:id`, `PUT /users/:id`, `DELETE /users/:id`
+     - Endpoints: `POST /users`, `GET /users/:id`, `PUT /users/:id`, `DELETE /users/:id`. *) additional requirements on notes below
    - **Product Service**: 
      - Endpoints: `POST /products`, `GET /products/:id`, `PUT /products/:id`, `DELETE /products/:id`
    - **Order Service**: 
      - Endpoints: `POST /orders`, `GET /orders/:id`, `PUT /orders/:id`, `DELETE /orders/:id`
      - **Cron Job**: Implement a cron job functionality within the Order Service endpoint. This should be triggered via a scheduled HTTP request (using an endpoint like `GET /orders/update-status` that can be scheduled to run daily).
+
+   NOTE: Create endpoint for validate token in User Service (`POST /users/validate`) takes login token as request input. And then call the validate token API on every service's middleware auth.
 
 3. **Database Integration**:
    - **MongoDB Setup**:
