@@ -31,7 +31,7 @@ Graded Challenge 1 ini dibuat guna mengevaluasi pemahaman mongoDB sebagai beriku
 3. **Database Integration**:
    - **MongoDB Setup**:
      - Design MongoDB collections for Users, Products, and Orders.
-     - Integrate each microservice with its respective MongoDB collection.
+     - Integrate each microservice with its respective MongoDB database.
 
 4. **Containerization**:
    - **Dockerize Microservices**: 
