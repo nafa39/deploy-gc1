@@ -1,4 +1,4 @@
-package main
+package userservice
 
 import (
 	"context"
@@ -7,15 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	_ "github.com/joho/godotenv/autoload"
 )
 
 type User struct {
@@ -26,45 +22,50 @@ type User struct {
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 }
 
-func main() {
-	// Load environment variables
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+type UserService struct {
+	client *mongo.Client
+}
 
-	// Initialize MongoDB client
+func NewUserService() *UserService {
+	// Load .env file from the root directory
+	// err := godotenv.Load("../.env") // Adjust the path if needed
+	// if err != nil {
+	// 	log.Fatal("Error loading .env file")
+	// }
+
+	// MongoDB connection
 	ctx := context.Background()
 	clientOpts := options.Client().ApplyURI(os.Getenv("MONGODB_URI"))
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func() { _ = client.Disconnect(ctx) }()
 
-	// Initialize Echo
-	e := echo.New()
+	// Verify MongoDB connection
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		log.Fatal("Failed to ping MongoDB:", err)
+	} else {
+		log.Println("Connected to MongoDB!")
+	}
 
-	// Middleware
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	return &UserService{client: client}
+}
 
+func (s *UserService) RegisterRoutes(e *echo.Echo) {
 	// Get the users collection
-	usersCollection := client.Database(os.Getenv("MONGODB_DATABASE")).Collection("users")
+	usersCollection := s.client.Database(os.Getenv("MONGODB_DATABASE")).Collection("users")
 
 	// Routes
-	e.POST("/users", createUser(usersCollection))
-	e.GET("/users/:id", getUser(usersCollection))
-	e.PUT("/users/:id", updateUser(usersCollection))
-	e.DELETE("/users/:id", deleteUser(usersCollection))
-	e.POST("/users/validate", validateToken)
-
-	// Start server
-	e.Logger.Fatal(e.Start(":3001"))
+	e.POST("/users", s.createUser(usersCollection))
+	e.GET("/users/:id", s.getUser(usersCollection))
+	e.PUT("/users/:id", s.updateUser(usersCollection))
+	e.DELETE("/users/:id", s.deleteUser(usersCollection))
+	e.POST("/users/validate", s.validateToken)
 }
 
 // Create a new user
-func createUser(coll *mongo.Collection) echo.HandlerFunc {
+func (s *UserService) createUser(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var user User
 		if err := c.Bind(&user); err != nil {
@@ -84,7 +85,7 @@ func createUser(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Get a user by ID
-func getUser(coll *mongo.Collection) echo.HandlerFunc {
+func (s *UserService) getUser(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(id)
@@ -106,7 +107,7 @@ func getUser(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Update a user by ID
-func updateUser(coll *mongo.Collection) echo.HandlerFunc {
+func (s *UserService) updateUser(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(id)
@@ -129,7 +130,7 @@ func updateUser(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Delete a user by ID
-func deleteUser(coll *mongo.Collection) echo.HandlerFunc {
+func (s *UserService) deleteUser(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(id)
@@ -147,7 +148,7 @@ func deleteUser(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Validate token
-func validateToken(c echo.Context) error {
+func (s *UserService) validateToken(c echo.Context) error {
 	type TokenRequest struct {
 		Token string `json:"token"`
 	}

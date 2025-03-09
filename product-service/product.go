@@ -1,4 +1,4 @@
-package main
+package productservice
 
 import (
 	"context"
@@ -9,14 +9,10 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/joho/godotenv"
-	_ "github.com/joho/godotenv/autoload"
 )
 
 type Product struct {
@@ -27,44 +23,49 @@ type Product struct {
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 }
 
-func main() {
-	// Load environment variables
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+type ProductService struct {
+	client *mongo.Client
+}
 
-	// Initialize MongoDB client
+func NewProductService() *ProductService {
+	// Load .env file from the root directory
+	// err := godotenv.Load("../.env") // Adjust the path if needed
+	// if err != nil {
+	// 	log.Fatal("Error loading .env file")
+	// }
+
+	// MongoDB connection
 	ctx := context.Background()
 	clientOpts := options.Client().ApplyURI(os.Getenv("MONGODB_URI"))
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func() { _ = client.Disconnect(ctx) }()
 
-	// Initialize Echo
-	e := echo.New()
+	// Verify MongoDB connection
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		log.Fatal("Failed to ping MongoDB:", err)
+	} else {
+		log.Println("Connected to MongoDB!")
+	}
 
-	// Middleware
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	return &ProductService{client: client}
+}
 
+func (s *ProductService) RegisterRoutes(e *echo.Echo) {
 	// Get the products collection
-	productsCollection := client.Database(os.Getenv("MONGODB_DATABASE")).Collection("products")
+	productsCollection := s.client.Database(os.Getenv("MONGODB_DATABASE")).Collection("products")
 
 	// Routes
-	e.POST("/products", createProduct(productsCollection))
-	e.GET("/products/:id", getProduct(productsCollection))
-	e.PUT("/products/:id", updateProduct(productsCollection))
-	e.DELETE("/products/:id", deleteProduct(productsCollection))
-
-	// Start server
-	e.Logger.Fatal(e.Start(":3002"))
+	e.POST("/products", s.createProduct(productsCollection))
+	e.GET("/products/:id", s.getProduct(productsCollection))
+	e.PUT("/products/:id", s.updateProduct(productsCollection))
+	e.DELETE("/products/:id", s.deleteProduct(productsCollection))
 }
 
 // Create a new product
-func createProduct(coll *mongo.Collection) echo.HandlerFunc {
+func (s *ProductService) createProduct(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var product Product
 		if err := c.Bind(&product); err != nil {
@@ -101,7 +102,7 @@ func createProduct(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Get a product by ID
-func getProduct(coll *mongo.Collection) echo.HandlerFunc {
+func (s *ProductService) getProduct(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(id)
@@ -123,7 +124,7 @@ func getProduct(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Update a product by ID
-func updateProduct(coll *mongo.Collection) echo.HandlerFunc {
+func (s *ProductService) updateProduct(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(id)
@@ -163,7 +164,7 @@ func updateProduct(coll *mongo.Collection) echo.HandlerFunc {
 }
 
 // Delete a product by ID
-func deleteProduct(coll *mongo.Collection) echo.HandlerFunc {
+func (s *ProductService) deleteProduct(coll *mongo.Collection) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		id := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(id)
