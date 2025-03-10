@@ -61,6 +61,7 @@ func (s *OrderService) RegisterRoutes(e *echo.Echo) {
 	e.GET("/orders/:id", s.getOrder)
 	e.PUT("/orders/:id", s.updateOrder)
 	e.DELETE("/orders/:id", s.deleteOrder)
+	e.GET("/orders/update-status", s.updateOrderStatus)
 
 	// Cron job to update order status daily
 	c := cron.New()
@@ -155,4 +156,45 @@ func (s *OrderService) deleteOrder(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+// Update order statuses
+func (s *OrderService) updateOrderStatus(c echo.Context) error {
+	// MongoDB connection
+	ctx := context.Background()
+	clientOpts := options.Client().ApplyURI(os.Getenv("MONGODB_URI"))
+	client, err := mongo.Connect(ctx, clientOpts)
+	if err != nil {
+		log.Fatal("Failed to connect to MongoDB:", err)
+	}
+
+	// Verify MongoDB connection
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		log.Fatal("Failed to ping MongoDB:", err)
+	} else {
+		log.Println("Connected to MongoDB!")
+	}
+
+	// Initialize cron job to update order status daily
+	cronJob := cron.New()
+	_, err = cronJob.AddFunc("0.5 * * * *", func() {
+		collection := client.Database(os.Getenv("MONGODB_DATABASE")).Collection("orders")
+		_, err := collection.UpdateMany(
+			context.Background(),
+			bson.M{"status": "Pending"},
+			bson.M{"$set": bson.M{"status": "Completed"}},
+		)
+		if err != nil {
+			log.Println("Error updating order statuses:", err)
+		} else {
+			log.Println("Order statuses updated")
+		}
+	})
+	if err != nil {
+		log.Fatal("Failed to schedule cron job:", err)
+	}
+	cronJob.Start()
+
+	return c.String(http.StatusOK, "Order status update scheduled")
 }
