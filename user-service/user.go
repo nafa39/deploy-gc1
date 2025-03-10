@@ -58,6 +58,7 @@ func (s *UserService) RegisterRoutes(e *echo.Echo) {
 
 	// Routes
 	e.POST("/users", s.createUser(usersCollection))
+	//e.GET("/users", s.getAllUsers(usersCollection))
 	e.GET("/users/:id", s.getUser(usersCollection))
 	e.PUT("/users/:id", s.updateUser(usersCollection))
 	e.DELETE("/users/:id", s.deleteUser(usersCollection))
@@ -72,6 +73,14 @@ func (s *UserService) createUser(coll *mongo.Collection) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid input"})
 		}
 
+		// // Validate required fields
+		// if user.Name == "" || user.Email == "" || user.Password == "" {
+		// 	return c.JSON(http.StatusBadRequest, map[string]string{"error": "Name, email, and password are required"})
+		// }
+
+		// // Log the incoming payload for debugging
+		// log.Printf("Incoming payload: %+v", user)
+
 		user.ID = primitive.NewObjectID()
 		user.CreatedAt = time.Now()
 
@@ -83,6 +92,27 @@ func (s *UserService) createUser(coll *mongo.Collection) echo.HandlerFunc {
 		return c.JSON(http.StatusCreated, user)
 	}
 }
+
+// // Get all users
+// func (s *UserService) getAllUsers(coll *mongo.Collection) echo.HandlerFunc {
+// 	return func(c echo.Context) error {
+// 		// Fetch all users from the collection
+// 		cursor, err := coll.Find(context.Background(), bson.M{})
+// 		if err != nil {
+// 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch users"})
+// 		}
+// 		defer cursor.Close(context.Background())
+
+// 		// Decode the results into a slice of User
+// 		var users []User
+// 		if err := cursor.All(context.Background(), &users); err != nil {
+// 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to decode users"})
+// 		}
+
+// 		// Return the list of users
+// 		return c.JSON(http.StatusOK, users)
+// 	}
+// }
 
 // Get a user by ID
 func (s *UserService) getUser(coll *mongo.Collection) echo.HandlerFunc {
