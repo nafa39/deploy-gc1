@@ -160,41 +160,48 @@ func (s *OrderService) deleteOrder(c echo.Context) error {
 
 // Update order statuses
 func (s *OrderService) updateOrderStatus(c echo.Context) error {
-	// MongoDB connection
-	ctx := context.Background()
-	clientOpts := options.Client().ApplyURI(os.Getenv("MONGODB_URI"))
-	client, err := mongo.Connect(ctx, clientOpts)
+	// Use the existing MongoDB client
+	collection := s.client.Database(os.Getenv("MONGODB_DATABASE")).Collection("orders")
+
+	// Update all orders with status "Pending" to "Completed"
+	res, err := collection.UpdateMany(
+		context.Background(),
+		bson.M{"status": "Pending"},
+		bson.M{"$set": bson.M{"status": "Completed"}},
+	)
 	if err != nil {
-		log.Fatal("Failed to connect to MongoDB:", err)
+		log.Println("Error updating order statuses:", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update order statuses"})
 	}
 
-	// Verify MongoDB connection
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		log.Fatal("Failed to ping MongoDB:", err)
-	} else {
-		log.Println("Connected to MongoDB!")
-	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":        "Order statuses updated successfully",
+		"modified_count": res.ModifiedCount,
+	})
+}
 
-	// Initialize cron job to update order status daily
+// StartCronJob starts the cron job to update order statuses daily
+func (s *OrderService) StartCronJob() {
 	cronJob := cron.New()
-	_, err = cronJob.AddFunc("0.5 * * * *", func() {
-		collection := client.Database(os.Getenv("MONGODB_DATABASE")).Collection("orders")
-		_, err := collection.UpdateMany(
-			context.Background(),
+	_, err := cronJob.AddFunc("*/30 * * * *", func() { // Run daily at midnight
+		collection := s.client.Database(os.Getenv("MONGODB_DATABASE")).Collection("orders")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		res, err := collection.UpdateMany(ctx,
 			bson.M{"status": "Pending"},
 			bson.M{"$set": bson.M{"status": "Completed"}},
 		)
 		if err != nil {
 			log.Println("Error updating order statuses:", err)
 		} else {
-			log.Println("Order statuses updated")
+			log.Printf("Order statuses updated: %d documents modified\n", res.ModifiedCount)
 		}
 	})
 	if err != nil {
 		log.Fatal("Failed to schedule cron job:", err)
 	}
-	cronJob.Start()
 
-	return c.String(http.StatusOK, "Order status update scheduled")
+	cronJob.Start()
+	log.Println("Cron job started. Running daily at midnight.")
 }

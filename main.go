@@ -21,6 +21,8 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
+	go orderservice.NewOrderService().StartCronJob()
+
 	// Initialize Echo
 	e := echo.New()
 
